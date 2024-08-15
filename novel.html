@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EPUB Reader with Text-to-Speech</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+        }
+        #chapter-list {
+            width: 250px;
+            height: 100%;
+            overflow-y: auto;
+            border-right: 1px solid #ccc;
+            padding: 10px;
+        }
+        #chapter-list h2 {
+            margin-top: 0;
+        }
+        #chapter-list ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        #chapter-list li {
+            cursor: pointer;
+            padding: 5px 0;
+        }
+        #chapter-list li:hover {
+            background-color: #f0f0f0;
+        }
+        #main-content {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        #epub-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="chapter-list">
+        <h2>Chapters</h2>
+        <ul id="chapter-nav"></ul>
+    </div>
+    <div id="main-content">
+        <input type="file" id="epub-upload" accept=".epub" />
+        <div id="epub-content" style="height: 80vh;"></div>
+    </div>
+    <script src="text-to-speech.js"></script>
+</body>
+</html>
