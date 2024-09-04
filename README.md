@@ -3,6 +3,10 @@
 `Epub Local Reciter` 是一个基于浏览器的 EPUB 电子书阅读器，集成了文本到语音（Text-to-Speech, TTS）功能。该项目允许用户加载本地 EPUB 文件或通过 URL 加载在线 EPUB 文件，并通过集成的 TTS 功能朗读书籍内容，为用户提供便利的听书体验。
 ![软件截屏](./screenshot/screenshot.jpg)
 
+## 特别说明
+
+本代码80%来自AI（Claude3.5）的协助生成，另有文档说明整个过程：[AI助我写代码（6）：电子书本地朗读（Epub Local Reciter）](https://www.broyustudio.com/2024/09/04/AI-Help-Epub-Local-Reciter.html)
+
 ## 项目特点
 
 - **本地与在线支持**：用户可以选择上传本地 EPUB 文件，或通过输入在线链接来加载电子书。
