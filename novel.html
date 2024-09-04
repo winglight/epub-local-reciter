@@ -4,56 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EPUB Reader with Text-to-Speech</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
     <style>
         body {
-            display: flex;
+            font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
+            display: flex;
+            flex-direction: column;
             height: 100vh;
         }
-        #chapter-list {
+        #controls {
+            background-color: #f0f0f0;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        #toc {
             width: 250px;
-            height: 100%;
             overflow-y: auto;
             border-right: 1px solid #ccc;
             padding: 10px;
         }
-        #chapter-list h2 {
-            margin-top: 0;
-        }
-        #chapter-list ul {
-            list-style-type: none;
-            padding: 0;
-        }
-        #chapter-list li {
-            cursor: pointer;
-            padding: 5px 0;
-        }
-        #chapter-list li:hover {
-            background-color: #f0f0f0;
-        }
-        #main-content {
-            flex-grow: 1;
-            padding: 20px;
-            overflow-y: auto;
-        }
         #epub-content {
-            max-width: 800px;
-            margin: 0 auto;
+            flex: 1;
+            overflow: auto;
+        }
+        #url-history {
+            display: none;
         }
     </style>
 </head>
 <body>
-    <div id="chapter-list">
-        <h2>Chapters</h2>
-        <ul id="chapter-nav"></ul>
+    <div id="controls">
+        <input type="file" id="epub-upload" accept=".epub">
+        <input type="text" id="epub-url" placeholder="Enter EPUB URL">
+        <button id="load-url">Load URL</button>
+        <button id="toggle-history">Show History</button>
+        <select id="url-history">
+            <option value="">Select from history</option>
+        </select>
     </div>
     <div id="main-content">
-        <input type="file" id="epub-upload" accept=".epub" />
-        <div id="epub-content" style="height: 80vh;"></div>
+        <div id="toc"></div>
+        <div id="epub-content"></div>
     </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
     <script src="text-to-speech.js"></script>
 </body>
 </html>

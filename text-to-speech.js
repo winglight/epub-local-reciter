@@ -20,6 +20,9 @@ class TextToSpeechPlayer {
         this.setupEpubUpload();
         this.setupKeyboardNavigation();
 
+        this.setupUrlInput();
+        this.loadUrlHistory();
+
         this.synth.onvoiceschanged = () => this.loadVoices();
     }
 
@@ -161,6 +164,57 @@ class TextToSpeechPlayer {
         }
     }
 
+    setupUrlInput() {
+        const urlInput = document.getElementById('epub-url');
+        const loadUrlButton = document.getElementById('load-url');
+        const toggleHistoryButton = document.getElementById('toggle-history');
+        const urlHistory = document.getElementById('url-history');
+    
+        loadUrlButton.addEventListener('click', () => this.loadEpubFromUrl(urlInput.value));
+        toggleHistoryButton.addEventListener('click', () => {
+            urlHistory.style.display = urlHistory.style.display === 'none' ? 'block' : 'none';
+        });
+        urlHistory.addEventListener('change', (e) => {
+            urlInput.value = e.target.value;
+        });
+    }
+    
+    loadEpubFromUrl(url) {
+        fetch(url)
+            .then(response => response.arrayBuffer())
+            .then(arrayBuffer => {
+                this.loadEpub(arrayBuffer, url);
+                this.addToUrlHistory(url);
+            })
+            .catch(error => console.error('Error loading EPUB from URL:', error));
+    }
+    
+    addToUrlHistory(url) {
+        let history = JSON.parse(localStorage.getItem('epubUrlHistory') || '[]');
+        if (!history.includes(url)) {
+            history.push(url);
+            localStorage.setItem('epubUrlHistory', JSON.stringify(history));
+            this.updateUrlHistoryDropdown();
+        }
+    }
+    
+    loadUrlHistory() {
+        const history = JSON.parse(localStorage.getItem('epubUrlHistory') || '[]');
+        this.updateUrlHistoryDropdown(history);
+    }
+    
+    updateUrlHistoryDropdown(history) {
+        const urlHistory = document.getElementById('url-history');
+        urlHistory.innerHTML = '<option value="">Select from history</option>';
+        history.forEach(url => {
+            const option = document.createElement('option');
+            option.value = url;
+            option.textContent = url;
+            urlHistory.appendChild(option);
+        });
+        urlHistory.selectedIndex = 0; // 确保默认选中第一个选项（空选项）
+    }
+
     setupKeyboardNavigation() {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') {
@@ -208,43 +262,88 @@ class TextToSpeechPlayer {
         reader.readAsArrayBuffer(file);
     }
 
-    loadEpub(arrayBuffer) {
+    saveReadingProgress() {
+        if (this.book && this.rendition) {
+            const currentLocation = this.rendition.currentLocation();
+            const progress = {
+                bookUrl: this.bookurl,
+                location: currentLocation.start.cfi,
+                timestamp: new Date().getTime()
+            };
+            localStorage.setItem('epubReadingProgress', JSON.stringify(progress));
+        }
+    }
+    
+    loadReadingProgress() {
+        const savedProgress = localStorage.getItem('epubReadingProgress');
+        if (savedProgress) {
+            const progress = JSON.parse(savedProgress);
+            if (progress.bookUrl === this.bookurl) {
+                this.rendition.display(progress.location);
+            }
+        }
+    }
+    
+    loadEpub(arrayBuffer, url = '') {
         try {
-            this.book = ePub(arrayBuffer);
+            console.log('Starting to load EPUB...');
+                this.book = ePub(arrayBuffer);
+                this.bookurl = url;  // Save the URL for later reference
+            
+            console.log('EPUB object created:', this.book);
+            
+            if (!this.book.loaded || !this.book.loaded.navigation) {
+                console.error('Book loaded property or navigation is undefined');
+                return;
+            }
+    
+            console.log('Waiting for navigation to load...');
             this.book.loaded.navigation.then(() => {
+                console.log('Navigation loaded successfully');
                 this.currentChapter = 0;
                 this.loadChapterList();
                 
-                // Create a rendition
                 this.rendition = this.book.renderTo("epub-content", {
                     width: "100%",
                     height: "100%",
                     spread: "always"
                 });
     
+                this.loadReadingProgress();  // Load the previous reading progress
                 this.displayChapter();
+    
+                // Save progress when the page changes
+                this.rendition.on('relocated', () => {
+                    this.saveReadingProgress();
+                });
             }).catch(error => {
                 console.error('Error loading EPUB navigation:', error);
             });
         } catch (error) {
-            console.error('Error loading EPUB:', error);
+            console.error('Error in loadEpub:', error);
         }
     }
 
     loadChapterList() {
         this.chapterList = this.book.navigation.toc;
-        const chapterNav = document.getElementById('chapter-nav');
-        if (chapterNav) {
-            chapterNav.innerHTML = '';
+        const tocElement = document.getElementById('toc');
+        if (tocElement) {
+            tocElement.innerHTML = '<h2>Table of Contents</h2>';
+            const ul = document.createElement('ul');
             this.chapterList.forEach((chapter, index) => {
                 const li = document.createElement('li');
-                li.textContent = chapter.label;
-                li.addEventListener('click', () => {
+                const a = document.createElement('a');
+                a.textContent = chapter.label;
+                a.href = '#';
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
                     this.currentChapter = index;
                     this.displayChapter();
                 });
-                chapterNav.appendChild(li);
+                li.appendChild(a);
+                ul.appendChild(li);
             });
+            tocElement.appendChild(ul);
         }
     }
 
@@ -290,9 +389,7 @@ class TextToSpeechPlayer {
                 playPauseButton.innerHTML = '⏸️';
             }
             
-            if (this.synth.paused) {
-                this.synth.resume();
-            } else {
+            const playNextPage = () => {
                 this.getCurrentPageText().then(text => {
                     if (!text) {
                         console.error('No text content found');
@@ -303,17 +400,19 @@ class TextToSpeechPlayer {
                     this.updateVolume();
                     this.updateRate();
                     this.utterance.onend = () => {
-                        this.isPlaying = false;
-                        if (playPauseButton) {
-                            playPauseButton.innerHTML = '▶️';
-                        }
                         this.flipPage(true);
-                        this.play();
+                        playNextPage();
                     };
                     this.synth.speak(this.utterance);
                 }).catch(error => {
-                    console.error('Error getting chapter text:', error);
+                    console.error('Error getting page text:', error);
                 });
+            };
+    
+            if (this.synth.paused) {
+                this.synth.resume();
+            } else {
+                playNextPage();
             }
         }
     }
