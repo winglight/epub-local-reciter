@@ -1,0 +1,45 @@
+/* r2-sync.css */
+.config-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    width: 300px;
+}
+
+.config-dialog h2 {
+    margin-top: 0;
+    color: #333;
+}
+
+.config-dialog label {
+    display: block;
+    margin-bottom: 10px;
+}
+
+.config-dialog input[type="text"],
+.config-dialog input[type="checkbox"] {
+    width: 100%;
+    padding: 5px;
+    margin-top: 5px;
+    box-sizing: border-box;
+}
+
+.config-dialog button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    margin-right: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.config-dialog button:hover {
+    background-color: #45a049;
+}
