@@ -337,28 +337,72 @@ class TextToSpeechPlayer {
         window.addEventListener('load', addKeyboardListeners);
     }
     
-    flipPage(next) {
-        if (this.rendition) {
-            console.log(`翻页: ${next ? '下一页' : '上一页'}`);
-            if(next){
-                this.rendition.next();
-            }else{
-                this.rendition.prev();
+        // 注意：这里有两个重复的 flipPage 方法，需要合并并修改
+        flipPage(next) {
+            if (this.rendition) {
+                console.log(`尝试翻页: ${next ? '下一页' : '上一页'}`);
+                
+                // 获取当前位置信息
+                const currentLocation = this.rendition.currentLocation();
+                
+                if (next) {
+                    // 尝试翻到下一页
+                    this.rendition.next().then(() => {
+                        // 检查翻页后的位置是否变化
+                        const newLocation = this.rendition.currentLocation();
+                        
+                        // 如果位置没有变化，说明已经到达章节末尾，需要跳转到下一章
+                        if (newLocation.start.cfi === currentLocation.start.cfi) {
+                            console.log('已到达当前章节末尾，尝试跳转到下一章');
+                            if (this.currentChapter < this.chapterList.length - 1) {
+                                this.currentChapter++;
+                                this.displayChapter();
+                            } else {
+                                console.log('已到达书籍末尾');
+                                this.stop(); // 停止播放
+                            }
+                        }
+                    }).catch(error => {
+                        console.error('翻页时出错:', error);
+                        
+                        // 尝试跳转到下一章
+                        if (this.currentChapter < this.chapterList.length - 1) {
+                            console.log('翻页失败，尝试跳转到下一章');
+                            this.currentChapter++;
+                            this.displayChapter();
+                        }
+                    });
+                } else {
+                    // 尝试翻到上一页
+                    this.rendition.prev().then(() => {
+                        // 检查翻页后的位置是否变化
+                        const newLocation = this.rendition.currentLocation();
+                        
+                        // 如果位置没有变化，说明已经到达章节开头，需要跳转到上一章
+                        if (newLocation.start.cfi === currentLocation.start.cfi) {
+                            console.log('已到达当前章节开头，尝试跳转到上一章');
+                            if (this.currentChapter > 0) {
+                                this.currentChapter--;
+                                this.displayChapter();
+                            } else {
+                                console.log('已到达书籍开头');
+                            }
+                        }
+                    }).catch(error => {
+                        console.error('翻页时出错:', error);
+                        
+                        // 尝试跳转到上一章
+                        if (this.currentChapter > 0) {
+                            console.log('翻页失败，尝试跳转到上一章');
+                            this.currentChapter--;
+                            this.displayChapter();
+                        }
+                    });
+                }
+            } else {
+                console.warn('rendition未初始化，无法翻页');
             }
-        } else {
-            console.warn('rendition未初始化，无法翻页');
         }
-    }
-
-    flipPage(next) {
-        if (this.rendition) {
-            if(next){
-                this.rendition.next();
-            }else{
-                this.rendition.prev();
-            }
-        }
-    }
 
     setupUrlInput() {
         const urlInput = document.getElementById('epub-url');
@@ -840,163 +884,6 @@ class TextToSpeechPlayer {
         }
     }
 
-    play() {
-        if (!this.isPlaying) {
-            this.isPlaying = true;
-            const playPauseButton = document.getElementById('ttsPlayPauseButton');
-            if (playPauseButton) {
-                playPauseButton.innerHTML = '⏸️';
-            }
-            
-            // 确保语音合成引擎处于活跃状态
-            if (this.synth.speaking) {
-                console.log('语音合成引擎正在播放，先取消当前播放');
-                this.synth.cancel();
-            }
-            
-            // 强制重新初始化语音合成引擎
-            if (window.speechSynthesis !== this.synth) {
-                console.log('重新初始化语音合成引擎');
-                this.synth = window.speechSynthesis;
-            }
-            
-            const playNextPage = () => {
-                this.getCurrentPageText().then(text => {
-                    if (!text) {
-                        console.error('No text content found');
-                        return;
-                    }
-                    
-                    // 分割长文本，避免超出语音合成引擎的限制
-                    const maxLength = 200; // 每段最大字符数
-                    const textChunks = [];
-                    
-                    // 按句子分割文本
-                    const sentences = text.split(/(?<=[.!?。！？])\s+/);
-                    let currentChunk = '';
-                    
-                    for (const sentence of sentences) {
-                        if (currentChunk.length + sentence.length > maxLength) {
-                            textChunks.push(currentChunk);
-                            currentChunk = sentence;
-                        } else {
-                            currentChunk += (currentChunk ? ' ' : '') + sentence;
-                        }
-                    }
-                    
-                    if (currentChunk) {
-                        textChunks.push(currentChunk);
-                    }
-                    
-                    console.log(`准备播放文本 (分为 ${textChunks.length} 段):`, text.substring(0, 50) + '...');
-                    
-                    // 播放第一段，其余段落在前一段结束后播放
-                    const speakChunk = (index) => {
-                        if (index >= textChunks.length) {
-                            // 所有段落播放完毕，翻页并继续
-                            console.log('当前页面播放完毕，准备翻页');
-                            this.flipPage(true);
-                            playNextPage();
-                            return;
-                        }
-                        
-                        // 创建新的 utterance 对象
-                        const utterance = new SpeechSynthesisUtterance(textChunks[index]);
-                        
-                        // 设置语音参数
-                        if (this.voices.length > 0 && this.currentVoiceIndex < this.voices.length) {
-                            utterance.voice = this.voices[this.currentVoiceIndex];
-                            console.log(`使用语音(段落${index+1}/${textChunks.length}):`, utterance.voice ? utterance.voice.name : '默认语音');
-                        } else {
-                            console.warn('没有可用的语音或语音索引无效');
-                        }
-                        
-                        // 确保语言设置正确
-                        if (utterance.voice && utterance.voice.lang) {
-                            utterance.lang = utterance.voice.lang;
-                        } else {
-                            // 默认使用中文
-                            utterance.lang = 'zh-CN';
-                        }
-                        
-                        utterance.volume = this.volume;
-                        utterance.rate = this.rate;
-                        utterance.pitch = 1.0; // 添加默认音调
-                        
-                        // 添加事件监听器
-                        utterance.onstart = () => console.log(`段落 ${index+1}/${textChunks.length} 开始播放`);
-                        utterance.onerror = (e) => {
-                            console.error(`段落 ${index+1}/${textChunks.length} 播放错误:`, e);
-                            // 尝试继续播放下一段
-                            speakChunk(index + 1);
-                        };
-                        utterance.onend = () => {
-                            console.log(`段落 ${index+1}/${textChunks.length} 播放结束`);
-                            // 播放下一段
-                            speakChunk(index + 1);
-                        };
-                        
-                        // 使用用户交互触发语音播放
-                        try {
-                            // 先清除之前的语音
-                            this.synth.cancel();
-                            
-                            // 确保语音合成引擎处于活跃状态
-                            if (!this.synth.speaking && !this.synth.pending) {
-                                console.log(`播放段落 ${index+1}/${textChunks.length}`);
-                                this.synth.speak(utterance);
-                                
-                                // 检查是否真的开始播放
-                                setTimeout(() => {
-                                    if (!this.synth.speaking && !this.synth.pending) {
-                                        console.warn('语音合成引擎没有开始播放，尝试使用替代方法');
-                                        
-                                        // 尝试使用 window 对象上的语音合成
-                                        window.speechSynthesis.cancel();
-                                        window.speechSynthesis.speak(utterance);
-                                        
-                                        // 如果仍然没有播放，尝试下一段
-                                        setTimeout(() => {
-                                            if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
-                                                console.warn('替代方法也失败，尝试下一段');
-                                                speakChunk(index + 1);
-                                            }
-                                        }, 500);
-                                    }
-                                }, 500);
-                            }
-                        } catch (error) {
-                            console.error(`段落 ${index+1} 播放异常:`, error);
-                            // 尝试继续播放下一段
-                            speakChunk(index + 1);
-                        }
-                    };
-                    
-                    // 开始播放第一段
-                    speakChunk(0);
-                    
-                }).catch(error => {
-                    console.error('获取页面文本时出错:', error);
-                    // 尝试恢复播放状态
-                    this.isPlaying = false;
-                    if (playPauseButton) {
-                        playPauseButton.innerHTML = '▶️';
-                    }
-                });
-            };
-    
-            if (this.synth.paused) {
-                console.log('恢复暂停的语音播放');
-                this.synth.resume();
-            } else {
-                console.log('开始新的语音播放');
-                // 确保在用户交互的上下文中触发播放
-                setTimeout(() => {
-                    playNextPage();
-                }, 100);
-            }
-        }
-    }
 
     getCurrentChapterText() {
         return new Promise((resolve, reject) => {
@@ -1066,24 +953,298 @@ class TextToSpeechPlayer {
         });
     }
 
-    pause() {
-        if (this.isPlaying) {
+        // 首先，添加一个完整的 stop 方法，确保正确清理状态
+        stop() {
+            console.log('停止播放');
+            // 取消所有待播放和正在播放的语音
+            this.synth.cancel();
+            
+            // 重置播放状态
             this.isPlaying = false;
-            document.getElementById('ttsPlayPauseButton').innerHTML = '▶️';
-            this.synth.pause();
+            
+            // 更新播放按钮状态
+            const playPauseButton = document.getElementById('ttsPlayPauseButton');
+            if (playPauseButton) {
+                playPauseButton.innerHTML = '▶️';
+            }
+            
+            // 清除可能存在的任何超时或回调
+            if (this.playbackTimeout) {
+                clearTimeout(this.playbackTimeout);
+                this.playbackTimeout = null;
+            }
         }
-    }
-
-    stop() {
-        this.synth.cancel();
-        this.isPlaying = false;
-        const playPauseButton = document.getElementById('ttsPlayPauseButton');
-        if (playPauseButton) {
-            playPauseButton.innerHTML = '▶️';
+        
+        pause() {
+            if (this.isPlaying) {
+                console.log('暂停播放');
+                this.synth.pause();
+                this.isPlaying = false;
+                const playPauseButton = document.getElementById('ttsPlayPauseButton');
+                if (playPauseButton) {
+                    playPauseButton.innerHTML = '▶️';
+                }
+            }
         }
-        // Reset to the beginning of the current chapter
-        this.displayChapter();
-    }
+    
+        // 修改 play 方法中的语音播放部分
+        play() {
+            if (!this.isPlaying) {
+                this.isPlaying = true;
+                const playPauseButton = document.getElementById('ttsPlayPauseButton');
+                if (playPauseButton) {
+                    playPauseButton.innerHTML = '⏸️';
+                }
+                
+                // 确保语音合成引擎处于活跃状态
+                if (this.synth.speaking) {
+                    console.log('语音合成引擎正在播放，先取消当前播放');
+                    this.synth.cancel();
+                }
+                
+                // 强制重新初始化语音合成引擎
+                this.synth = window.speechSynthesis;
+                
+                const playNextPage = () => {
+                    // 如果播放已停止，不继续处理
+                    if (!this.isPlaying) {
+                        console.log('播放已停止，不继续获取下一页');
+                        return;
+                    }
+                    
+                    this.getCurrentPageText().then(text => {
+                        if (!text) {
+                            console.error('No text content found');
+                            return;
+                        }
+                        
+                        // 分割长文本，避免超出语音合成引擎的限制
+                        const maxLength = 200; // 每段最大字符数
+                        const textChunks = [];
+                        
+                        // 按句子分割文本
+                        const sentences = text.split(/(?<=[.!?。！？])\s+/);
+                        let currentChunk = '';
+                        
+                        for (const sentence of sentences) {
+                            if (currentChunk.length + sentence.length > maxLength) {
+                                textChunks.push(currentChunk);
+                                currentChunk = sentence;
+                            } else {
+                                currentChunk += (currentChunk ? ' ' : '') + sentence;
+                            }
+                        }
+                        
+                        if (currentChunk) {
+                            textChunks.push(currentChunk);
+                        }
+                        
+                        console.log(`准备播放文本 (分为 ${textChunks.length} 段):`, text.substring(0, 50) + '...');
+                        
+                        // 播放第一段，其余段落在前一段结束后播放
+                        const speakChunk = (index) => {
+                            // 检查播放状态
+                            if (!this.isPlaying) {
+                                console.log('播放已停止，不继续播放下一段');
+                                return;
+                            }
+                            
+                            if (index >= textChunks.length) {
+                                // 所有段落播放完毕，翻页并继续
+                                console.log('当前页面播放完毕，准备翻页');
+                                
+                                // 记录当前位置，用于检测翻页是否成功
+                                const currentLocation = this.rendition ? this.rendition.currentLocation() : null;
+                                
+                                // 翻到下一页
+                                this.flipPage(true);
+                                
+                                // 给翻页一些时间完成
+                                this.playbackTimeout = setTimeout(() => {
+                                    // 再次检查播放状态
+                                    if (!this.isPlaying) {
+                                        console.log('播放已停止，不继续获取下一页');
+                                        return;
+                                    }
+                                    
+                                    // 检查翻页后的位置是否变化
+                                    if (this.rendition) {
+                                        const newLocation = this.rendition.currentLocation();
+                                        
+                                        // 如果位置没有变化，可能是因为已经到达章节末尾
+                                        if (currentLocation && newLocation.start.cfi === currentLocation.start.cfi) {
+                                            console.log('翻页后位置未变化，可能已到达章节末尾，尝试进入下一章');
+                                            if (this.currentChapter < this.chapterList.length - 1) {
+                                                this.currentChapter++;
+                                                this.displayChapter();
+                                                
+                                                // 给章节加载一些时间
+                                                this.playbackTimeout = setTimeout(() => {
+                                                    if (this.isPlaying) {
+                                                        playNextPage();
+                                                    }
+                                                }, 1000);
+                                            } else {
+                                                console.log('已到达书籍末尾');
+                                                this.stop(); // 停止播放
+                                            }
+                                            return;
+                                        }
+                                    }
+                                    
+                                    // 继续播放下一页
+                                    playNextPage();
+                                }, 500); // 给翻页操作500毫秒的时间
+                                
+                                return;
+                            }
+                            
+                            // 创建新的 utterance 对象
+                            const utterance = new SpeechSynthesisUtterance(textChunks[index]);
+                            
+                            // 设置语音参数
+                            if (this.voices.length > 0 && this.currentVoiceIndex < this.voices.length) {
+                                utterance.voice = this.voices[this.currentVoiceIndex];
+                                console.log(`使用语音(段落${index+1}/${textChunks.length}):`, utterance.voice ? utterance.voice.name : '默认语音');
+                            } else {
+                                console.warn('没有可用的语音或语音索引无效');
+                            }
+                            
+                            // 确保语言设置正确
+                            if (utterance.voice && utterance.voice.lang) {
+                                utterance.lang = utterance.voice.lang;
+                            } else {
+                                // 默认使用中文
+                                utterance.lang = 'zh-CN';
+                            }
+                            
+                            utterance.volume = this.volume;
+                            utterance.rate = this.rate;
+                            utterance.pitch = 1.0; // 添加默认音调
+                            
+                            // 添加事件监听器
+                            utterance.onstart = () => {
+                                console.log(`段落 ${index+1}/${textChunks.length} 开始播放`);
+                            };
+                            
+                            utterance.onerror = (e) => {
+                                console.error(`段落 ${index+1}/${textChunks.length} 播放错误:`, e);
+                                // 检查是否仍在播放状态
+                                if (this.isPlaying) {
+                                    // 尝试继续播放下一段
+                                    speakChunk(index + 1);
+                                }
+                            };
+                            
+                            utterance.onend = () => {
+                                console.log(`段落 ${index+1}/${textChunks.length} 播放结束`);
+                                // 检查是否仍在播放状态
+                                if (this.isPlaying) {
+                                    // 播放下一段
+                                    speakChunk(index + 1);
+                                }
+                            };
+                            
+                            // 使用用户交互触发语音播放
+                            try {
+                                // 先清除之前的语音
+                                this.synth.cancel();
+                                
+                                console.log(`播放段落 ${index+1}/${textChunks.length}`);
+                                
+                                // 使用 setTimeout 确保在用户交互上下文中播放
+                                setTimeout(() => {
+                                    if (this.isPlaying) {
+                                        // 尝试使用不同的方式播放
+                                        try {
+                                            // 方法1：直接使用 synth 播放
+                                            this.synth.speak(utterance);
+                                            
+                                            // 检查是否真的开始播放
+                                            setTimeout(() => {
+                                                if (!this.synth.speaking && !this.synth.pending && this.isPlaying) {
+                                                    console.warn('方法1失败，尝试方法2');
+                                                    
+                                                    // 方法2：使用全局 speechSynthesis
+                                                    window.speechSynthesis.cancel();
+                                                    window.speechSynthesis.speak(this.utterance);
+                                                    
+                                                    // 再次检查
+                                                    setTimeout(() => {
+                                                        if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending && this.isPlaying) {
+                                                            console.warn('方法2也失败，尝试方法3');
+                                                            
+                                                            // 方法3：创建新的 utterance 并使用不同的参数
+                                                            const newUtterance = new SpeechSynthesisUtterance(textChunks[index]);
+                                                            if (this.voices.length > 0) {
+                                                                newUtterance.voice = this.voices[this.currentVoiceIndex];
+                                                            }
+                                                            newUtterance.volume = 1.0;
+                                                            newUtterance.rate = 1.0;
+                                                            newUtterance.pitch = 1.0;
+                                                            newUtterance.lang = 'zh-CN';
+                                                            
+                                                            newUtterance.onend = () => {
+                                                                if (this.isPlaying) {
+                                                                    speakChunk(index + 1);
+                                                                }
+                                                            };
+                                                            
+                                                            window.speechSynthesis.speak(newUtterance);
+                                                            
+                                                            // 如果仍然失败，尝试下一段
+                                                            setTimeout(() => {
+                                                                if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending && this.isPlaying) {
+                                                                    console.warn('所有方法都失败，尝试下一段');
+                                                                    speakChunk(index + 1);
+                                                                }
+                                                            }, 500);
+                                                        }
+                                                    }, 300);
+                                                }
+                                            }, 300);
+                                        } catch (error) {
+                                            console.error(`播放异常:`, error);
+                                            if (this.isPlaying) {
+                                                speakChunk(index + 1);
+                                            }
+                                        }
+                                    }
+                                }, 50);
+                            } catch (error) {
+                                console.error(`段落 ${index+1} 播放异常:`, error);
+                                // 尝试继续播放下一段
+                                if (this.isPlaying) {
+                                    speakChunk(index + 1);
+                                }
+                            }
+                        };
+                        
+                        // 开始播放第一段
+                        speakChunk(0);
+                        
+                    }).catch(error => {
+                        console.error('获取页面文本时出错:', error);
+                        // 尝试恢复播放状态
+                        this.isPlaying = false;
+                        if (playPauseButton) {
+                            playPauseButton.innerHTML = '▶️';
+                        }
+                    });
+                };
+        
+                if (this.synth.paused) {
+                    console.log('恢复暂停的语音播放');
+                    this.synth.resume();
+                } else {
+                    console.log('开始新的语音播放');
+                    // 确保在用户交互的上下文中触发播放
+                    this.playbackTimeout = setTimeout(() => {
+                        playNextPage();
+                    }, 100);
+                }
+            }
+        }
 
     toggleSettings() {
         const panel = document.getElementById('ttsSettings');
