@@ -284,18 +284,80 @@ class TextToSpeechPlayer {
     }
 
     setupKeyboardNavigation() {
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') {
-                // this.previousChapter();
-                this.flipPage(false);
-            } else if (e.key === 'ArrowRight') {
-                // this.nextChapter();
-                this.flipPage(true);
-            } else if (e.key === ' ' || e.key === 'Spacebar') {
-                e.preventDefault(); // Prevent default space bar behavior (usually scrolling)
-                this.flipPage(true);
+        // 确保在DOM完全加载后添加事件监听器
+        const addKeyboardListeners = () => {
+            console.log('设置键盘导航事件监听器');
+            
+            // 使用捕获阶段监听键盘事件，确保能捕获到事件
+            document.addEventListener('keydown', (e) => {
+                console.log('键盘事件触发:', e.key);
+                
+                if (e.key === 'ArrowLeft') {
+                    console.log('左箭头按下，向前翻页');
+                    e.preventDefault(); // 阻止默认行为
+                    this.flipPage(false);
+                } else if (e.key === 'ArrowRight') {
+                    console.log('右箭头按下，向后翻页');
+                    e.preventDefault(); // 阻止默认行为
+                    this.flipPage(true);
+                } else if (e.key === ' ' || e.key === 'Spacebar') {
+                    console.log('空格键按下，向后翻页');
+                    e.preventDefault(); // 阻止默认行为（通常是滚动）
+                    this.flipPage(true);
+                }
+            }, true); // 使用捕获阶段
+            
+            // 确保内容区域能够接收键盘事件
+            const contentElement = document.getElementById('epub-content');
+            if (contentElement) {
+                // 使内容区域可聚焦
+                contentElement.tabIndex = 0;
+                
+                // 在用户点击内容区域时自动聚焦
+                contentElement.addEventListener('click', () => {
+                    contentElement.focus();
+                });
+                
+                // 初始自动聚焦
+                setTimeout(() => {
+                    contentElement.focus();
+                }, 1000);
             }
-        });
+        };
+        
+        // 如果DOM已加载完成，立即添加事件监听器
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            addKeyboardListeners();
+        } else {
+            // 否则等待DOM加载完成
+            document.addEventListener('DOMContentLoaded', addKeyboardListeners);
+        }
+        
+        // 为了确保事件监听器被添加，在window加载完成后再次尝试添加
+        window.addEventListener('load', addKeyboardListeners);
+    }
+    
+    flipPage(next) {
+        if (this.rendition) {
+            console.log(`翻页: ${next ? '下一页' : '上一页'}`);
+            if(next){
+                this.rendition.next();
+            }else{
+                this.rendition.prev();
+            }
+        } else {
+            console.warn('rendition未初始化，无法翻页');
+        }
+    }
+
+    flipPage(next) {
+        if (this.rendition) {
+            if(next){
+                this.rendition.next();
+            }else{
+                this.rendition.prev();
+            }
+        }
     }
 
     setupUrlInput() {
