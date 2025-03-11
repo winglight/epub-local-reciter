@@ -1055,6 +1055,7 @@ class TextToSpeechPlayer {
                                 
                                 // 记录当前位置，用于检测翻页是否成功
                                 const currentLocation = this.rendition ? this.rendition.currentLocation() : null;
+                                const currentChapterIndex = this.currentChapter; // 记录当前章节索引
                                 
                                 // 翻到下一页
                                 this.flipPage(true);
@@ -1081,6 +1082,8 @@ class TextToSpeechPlayer {
                                                 // 给章节加载一些时间
                                                 this.playbackTimeout = setTimeout(() => {
                                                     if (this.isPlaying) {
+                                                        console.log('章节已切换，重新开始播放新章节内容');
+                                                        // 重新调用 playNextPage 而不是继续使用旧的文本块
                                                         playNextPage();
                                                     }
                                                 }, 1000);
@@ -1092,8 +1095,15 @@ class TextToSpeechPlayer {
                                         }
                                     }
                                     
-                                    // 继续播放下一页
-                                    playNextPage();
+                                    // 检查章节是否已经改变
+                                    if (this.currentChapter !== currentChapterIndex) {
+                                        console.log('检测到章节已改变，重新获取新章节内容');
+                                        // 重新调用 playNextPage 获取新章节内容
+                                        playNextPage();
+                                    } else {
+                                        // 继续播放下一页
+                                        playNextPage();
+                                    }
                                 }, 500); // 给翻页操作500毫秒的时间
                                 
                                 return;
